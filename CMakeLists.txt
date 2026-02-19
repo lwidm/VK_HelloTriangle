@@ -19,6 +19,13 @@ target_compile_definitions(HelloTriangle PRIVATE
 target_include_directories(HelloTriangle PRIVATE ${Vulkan_INCLUDE_DIRS})
 target_link_libraries(HelloTriangle PRIVATE Vulkan::Vulkan glfw glm::glm)
 
+if(WIN32)
+    if(CMAKE_GENERATOR MATCHES "Visual Studio.*")
+        set_target_properties(HelloTriangle PROPERTIES
+            VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
+    endif()
+endif()
+
 # =============================================================================
 # Copy compile_commands.json (Development convenience)
 # =============================================================================

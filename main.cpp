@@ -5,59 +5,34 @@
 #include <stdexcept>
 #include <cstdlib>
 
-constexpr uint32_t WIDTH  = 800;
-constexpr uint32_t HEIGHT = 600;
-
-class HelloTriangleApplication
-{
+class HelloTriangleApplication {
 public:
-    void run()
-    {
-        initWindow();
+    void run() {
         initVulkan();
         mainLoop();
         cleanup();
     }
 
 private:
-    GLFWwindow *window = nullptr;
+    void initVulkan() {
 
-    void initWindow()
-    {
-        glfwInit();
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-        window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
     }
 
-    void initVulkan()
-    {
+    void mainLoop() {
+
     }
 
-    void mainLoop()
-    {
-        while (!glfwWindowShouldClose(window))
-        {
-            glfwPollEvents();
-        }
-    }
+    void cleanup() {
 
-    void cleanup()
-    {
-        glfwDestroyWindow(window);
-        glfwTerminate();
     }
 };
 
-int main()
-{
-    try
-    {
-        HelloTriangleApplication app;
+int main() {
+    HelloTriangleApplication app;
+
+    try {
         app.run();
-    }
-    catch (const std::exception &e)
-    {
+    } catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
