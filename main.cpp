@@ -96,18 +96,16 @@ class HelloTriangleApplication
             throw std::runtime_error("One or more required layers are not supported!");
         }
 
-        // Get the required extensions.
-        uint32_t glfwExtensionCount = 0;
-        auto     glfwExtensions     = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+        auto requiredExtensions = this->getRequiredExtensions();
 
         // Check if the required extensions are supported by the Vulkan implementation.
         auto extensionProperties = this->context.enumerateInstanceExtensionProperties();
-        for (uint32_t i = 0; i < glfwExtensionCount; ++i)
+        for (uint32_t i = 0; i < requiredExtensions.size(); ++i)
         {
             if (std::ranges::none_of(extensionProperties,
-                                     [glfwExtension = glfwExtensions[i]](auto const &extensionProperty) { return strcmp(extensionProperty.extensionName, glfwExtension) == 0; }))
+                                     [requiredExtension = requiredExtensions[i]](auto const &extensionProperty) { return strcmp(extensionProperty.extensionName, requiredExtension) == 0; }))
             {
-                throw std::runtime_error("Required GLFW extension not supported: " + std::string(glfwExtensions[i]));
+                throw std::runtime_error("Required GLFW extension not supported: " + std::string(requiredExtensions[i]));
             }
         }
 
@@ -115,10 +113,21 @@ class HelloTriangleApplication
             .pApplicationInfo        = &appInfo,
             .enabledLayerCount       = static_cast<uint32_t>(requiredLayers.size()),
             .ppEnabledLayerNames     = requiredLayers.data(),
-            .enabledExtensionCount   = glfwExtensionCount,
-            .ppEnabledExtensionNames = glfwExtensions};
+            .enabledExtensionCount   = static_cast<uint32_t>(requiredExtensions.size()),
+            .ppEnabledExtensionNames = requiredExtensions.data()};
 
         instance = vk::raii::Instance(context, createInfo);
+    }
+
+    std::vector<const char*> getRequiredExtensions() {
+        uint32_t glfwExtensionCount = 0;
+        auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+        std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+        if (enableValidationLayers)
+            extensions.push_back(vk::EXTDebugUtilsExtensionName);
+
+        return extensions;
     }
 };
 
