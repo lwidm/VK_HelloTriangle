@@ -13,6 +13,15 @@
 constexpr uint32_t WIDTH  = 800;
 constexpr uint32_t HEIGHT = 600;
 
+const std::vector<const char *> validationLayers = {
+    "VK_LAYER_KHRONOS_validation"};
+
+#ifdef NDEBUG
+constexpr bool enableValidationLayers = false;
+#else
+constexpr bool enableValidationLayers = true;
+#endif
+
 class HelloTriangleApplication
 {
   public:
@@ -25,13 +34,15 @@ class HelloTriangleApplication
     }
 
   private:
-    GLFWwindow        *window = nullptr;
+    GLFWwindow *window = nullptr;
+
     vk::raii::Context  context;
     vk::raii::Instance instance = nullptr;
 
     void initWindow()
     {
         glfwInit();
+
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
@@ -40,7 +51,7 @@ class HelloTriangleApplication
 
     void initVulkan()
     {
-        createInstance();
+        this->createInstance();
     }
 
     void mainLoop()
@@ -64,12 +75,33 @@ class HelloTriangleApplication
             .pApplicationName   = "Hello Triangle",
             .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
             .pEngineName        = "No Engine",
+            .engineVersion      = VK_MAKE_VERSION(1, 0, 0),
             .apiVersion         = vk::ApiVersion14};
 
+        // Get the required layers
+        std::vector<const char *> requiredLayers;
+        if (enableValidationLayers)
+        {
+            requiredLayers.assign(validationLayers.begin(), validationLayers.end());
+        }
+
+        // Check if the required layers are supported by the Vulkan implementation.
+        auto layerProperties = this->context.enumerateInstanceLayerProperties();
+        if (std::ranges::any_of(requiredLayers, [&layerProperties](const auto &requiredLayer) {
+                return std::ranges::none_of(layerProperties, [requiredLayer](const auto &layerProperty) {
+                    return strcmp(layerProperty.layerName, requiredLayer) == 0;
+                });
+            }))
+        {
+            throw std::runtime_error("One or more required layers are not supported!");
+        }
+
+        // Get the required extensions.
         uint32_t glfwExtensionCount = 0;
         auto     glfwExtensions     = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
-        auto extensionProperties = context.enumerateInstanceExtensionProperties();
+        // Check if the required extensions are supported by the Vulkan implementation.
+        auto extensionProperties = this->context.enumerateInstanceExtensionProperties();
         for (uint32_t i = 0; i < glfwExtensionCount; ++i)
         {
             if (std::ranges::none_of(extensionProperties,
@@ -81,6 +113,8 @@ class HelloTriangleApplication
 
         vk::InstanceCreateInfo createInfo{
             .pApplicationInfo        = &appInfo,
+            .enabledLayerCount       = static_cast<uint32_t>(requiredLayers.size()),
+            .ppEnabledLayerNames     = requiredLayers.data(),
             .enabledExtensionCount   = glfwExtensionCount,
             .ppEnabledExtensionNames = glfwExtensions};
 
