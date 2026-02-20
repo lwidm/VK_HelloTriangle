@@ -36,8 +36,9 @@ class HelloTriangleApplication
   private:
     GLFWwindow *window = nullptr;
 
-    vk::raii::Context  context;
-    vk::raii::Instance instance = nullptr;
+    vk::raii::Context                context;
+    vk::raii::Instance               instance       = nullptr;
+    vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
 
     void initWindow()
     {
@@ -52,6 +53,7 @@ class HelloTriangleApplication
     void initVulkan()
     {
         this->createInstance();
+        this->setupDebugMessenger();
     }
 
     void mainLoop()
@@ -119,15 +121,38 @@ class HelloTriangleApplication
         instance = vk::raii::Instance(context, createInfo);
     }
 
-    std::vector<const char*> getRequiredExtensions() {
-        uint32_t glfwExtensionCount = 0;
-        auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+    void setupDebugMessenger()
+    {
+        if (!enableValidationLayers)
+            return;
+        vk::DebugUtilsMessageSeverityFlagsEXT severityFlags(vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError);
+        vk::DebugUtilsMessageTypeFlagsEXT     messageTypeFlags(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation);
+        vk::DebugUtilsMessengerCreateInfoEXT  debugUtilsMessengerCreateInfoEXT{
+             .messageSeverity = severityFlags,
+             .messageType     = messageTypeFlags,
+             .pfnUserCallback = &debugCallback};
+        this->debugMessenger = this->instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfoEXT);
+    }
 
-        std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+    std::vector<const char *> getRequiredExtensions()
+    {
+        uint32_t glfwExtensionCount = 0;
+        auto     glfwExtensions     = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+        std::vector<const char *> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
         if (enableValidationLayers)
             extensions.push_back(vk::EXTDebugUtilsExtensionName);
 
         return extensions;
+    }
+
+    static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type, const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData, void *)
+    {
+        if (severity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eError || severity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning)
+        {
+            std::cerr << "validation layer: type " << to_string(type) << " msg: " << pCallbackData->pMessage << std::endl;
+        }
+        return vk::False;
     }
 };
 
