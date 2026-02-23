@@ -142,6 +142,15 @@ class HelloTriangleApplication
         this->debugMessenger = this->instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfoEXT);
     }
 
+    uint32_t findQueueFamilies(vk::raii::PhysicalDevice physicalDevice)
+    {
+        std::vector<vk::QueueFamilyProperties> queueFamilyProperties = this->physicalDevice.getQueueFamilyProperties();
+
+        auto graphicsQueueFamilyProperty = std::find_if(queueFamilyProperties.begin(), queueFamilyProperties.end(), [](const vk::QueueFamilyProperties &qfp) { return qfp.queueFlags & vk::QueueFlagBits::eGraphics; });
+
+        return static_cast<uint32_t>(std::distance(queueFamilyProperties.begin(), graphicsQueueFamilyProperty));
+    }
+
     void pickPhysicalDevice()
     {
         std::vector<vk::raii::PhysicalDevice> devices = this->instance.enumeratePhysicalDevices();
@@ -167,7 +176,8 @@ class HelloTriangleApplication
             }
             return isSuitable;
         });
-        if (devIter == devices.end()) {
+        if (devIter == devices.end())
+        {
             throw std::runtime_error("failed to find a suitable GPU!");
         }
     }
