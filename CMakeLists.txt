@@ -7,23 +7,26 @@ project(HelloTriangle)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/CMake")
 
 find_package(glfw3 REQUIRED)
-find_package(glm REQUIRED)
+# find_package(glm REQUIRED)
+add_subdirectory(external/glm)
 find_package(Vulkan 1.4.335 REQUIRED)
 
 add_executable(HelloTriangle main.cpp)
 set_target_properties(HelloTriangle PROPERTIES CXX_STANDARD 20)
-target_compile_definitions(HelloTriangle PRIVATE
-    VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
-    VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1
-    VULKAN_HPP_HANDLE_ERROR_OUT_OF_DATE_AS_SUCCESS)
+target_compile_definitions(
+  HelloTriangle
+  PRIVATE VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+          VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1
+          VULKAN_HPP_HANDLE_ERROR_OUT_OF_DATE_AS_SUCCESS
+          VULKAN_HPP_NO_SPACESHIP_OPERATOR)
 target_include_directories(HelloTriangle PRIVATE ${Vulkan_INCLUDE_DIRS})
 target_link_libraries(HelloTriangle PRIVATE Vulkan::Vulkan glfw glm::glm)
 
 if(WIN32)
-    if(CMAKE_GENERATOR MATCHES "Visual Studio.*")
-        set_target_properties(HelloTriangle PROPERTIES
-            VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
-    endif()
+  if(CMAKE_GENERATOR MATCHES "Visual Studio.*")
+    set_target_properties(HelloTriangle PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY
+                                                   "${CMAKE_BINARY_DIR}")
+  endif()
 endif()
 
 # =============================================================================

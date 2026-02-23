@@ -45,6 +45,8 @@ class HelloTriangleApplication
 
     vk::raii::PhysicalDevice physicalDevice = nullptr;
 
+    std::vector<const char *> deviceExtensions = {vk::KHRSwapchainExtensionName};
+
     void initWindow()
     {
         glfwInit();
@@ -144,15 +146,30 @@ class HelloTriangleApplication
     {
         std::vector<vk::raii::PhysicalDevice> devices = this->instance.enumeratePhysicalDevices();
         const auto                            devIter = std::ranges::find_if(devices, [&](const vk::raii::PhysicalDevice &device) {
-            auto queueFamilies = device.getQueueFamilyProperties();
-            bool isSuitable    = device.getProperties().apiVersion >= VK_API_VERSION_1_3;
-            const auto qfpIter = std::ranges::find_if(queueFamilies,
-                [](const vk::QueueFamilyProperties& qfp){
-                    return (qfp.queueFlags & vk::QueueFlagBits::eGraphics) != static_cast<vk::QueueFlags>(0);
-                });
-            isSuitable = isSuitable && (qfpIter != queueFamilies.end());
-            auto extensions = device.enumerateDeviceExtensionProperties();
+            auto       queueFamilies = device.getQueueFamilyProperties();
+            bool       isSuitable    = device.getProperties().apiVersion >= VK_API_VERSION_1_3;
+            const auto qfpIter       = std::ranges::find_if(queueFamilies,
+                                                                                       [](const vk::QueueFamilyProperties &qfp) {
+                                                          return (qfp.queueFlags & vk::QueueFlagBits::eGraphics) != static_cast<vk::QueueFlags>(0);
+                                                      });
+            isSuitable               = isSuitable && (qfpIter != queueFamilies.end());
+            auto extensions          = device.enumerateDeviceExtensionProperties();
+            bool found               = true;
+            for (const auto &extension : this->deviceExtensions)
+            {
+                auto extensionIter = std::ranges::find_if(extensions, [extension](auto const &ext) { return strcmp(ext.extensionName, extension) == 0; });
+                found              = found && extensionIter != extensions.end();
+            }
+            isSuitable = isSuitable && found;
+            if (isSuitable)
+            {
+                this->physicalDevice = device;
+            }
+            return isSuitable;
         });
+        if (devIter == devices.end()) {
+            throw std::runtime_error("failed to find a suitable GPU!");
+        }
     }
 
     std::vector<const char *> getRequiredExtensions()
