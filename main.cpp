@@ -1,6 +1,9 @@
 #include "vulkan/vulkan.hpp"
 #include <algorithm>
 #include <cstdint>
+#include <map>
+#include <utility>
+#include <vector>
 #include <vulkan/vulkan_core.h>
 #include <vulkan/vulkan_raii.hpp>
 #define GLFW_INCLUDE_VULKAN
@@ -40,6 +43,8 @@ class HelloTriangleApplication
     vk::raii::Instance               instance       = nullptr;
     vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
 
+    vk::raii::PhysicalDevice physicalDevice = nullptr;
+
     void initWindow()
     {
         glfwInit();
@@ -54,6 +59,7 @@ class HelloTriangleApplication
     {
         this->createInstance();
         this->setupDebugMessenger();
+        this->pickPhysicalDevice();
     }
 
     void mainLoop()
@@ -132,6 +138,21 @@ class HelloTriangleApplication
              .messageType     = messageTypeFlags,
              .pfnUserCallback = &debugCallback};
         this->debugMessenger = this->instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfoEXT);
+    }
+
+    void pickPhysicalDevice()
+    {
+        std::vector<vk::raii::PhysicalDevice> devices = this->instance.enumeratePhysicalDevices();
+        const auto                            devIter = std::ranges::find_if(devices, [&](const vk::raii::PhysicalDevice &device) {
+            auto queueFamilies = device.getQueueFamilyProperties();
+            bool isSuitable    = device.getProperties().apiVersion >= VK_API_VERSION_1_3;
+            const auto qfpIter = std::ranges::find_if(queueFamilies,
+                [](const vk::QueueFamilyProperties& qfp){
+                    return (qfp.queueFlags & vk::QueueFlagBits::eGraphics) != static_cast<vk::QueueFlags>(0);
+                });
+            isSuitable = isSuitable && (qfpIter != queueFamilies.end());
+            auto extensions = device.enumerateDeviceExtensionProperties();
+        });
     }
 
     std::vector<const char *> getRequiredExtensions()
