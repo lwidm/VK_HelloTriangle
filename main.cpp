@@ -42,11 +42,11 @@ class HelloTriangleApplication
     vk::raii::Context                context;
     vk::raii::Instance               instance       = nullptr;
     vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
-
-    vk::raii::PhysicalDevice physicalDevice = nullptr;
-    vk::raii::Device         device         = nullptr;
-
-    vk::raii::Queue graphicsQueue = nullptr;
+    vk::raii::SurfaceKHR             surface        = nullptr;
+    vk::raii::PhysicalDevice         physicalDevice = nullptr;
+    vk::raii::Device                 device         = nullptr;
+    vk::raii::Queue                  graphicsQueue  = nullptr;
+    vk::raii::Queue                  presentQueue   = nullptr;
 
     std::vector<const char *> deviceExtensions = {vk::KHRSwapchainExtensionName};
 
@@ -64,6 +64,7 @@ class HelloTriangleApplication
     {
         this->createInstance();
         this->setupDebugMessenger();
+        this->createSurface();
         this->pickPhysicalDevice();
         this->createLogicalDevice();
     }
@@ -146,6 +147,16 @@ class HelloTriangleApplication
         this->debugMessenger = this->instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfoEXT);
     }
 
+    void createSurface()
+    {
+        VkSurfaceKHR _surface;
+        if (glfwCreateWindowSurface(*this->instance, this->window, nullptr, &_surface) != 0)
+        {
+            throw std::runtime_error("failed to create window surface!");
+        }
+        this->surface = vk::raii::SurfaceKHR(this->instance, _surface);
+    }
+
     void pickPhysicalDevice()
     {
         std::vector<vk::raii::PhysicalDevice> devices = this->instance.enumeratePhysicalDevices();
@@ -186,6 +197,38 @@ class HelloTriangleApplication
         auto graphicsQueueFamilyProperty = std::ranges::find_if(queueFamilyProperties, [](const vk::QueueFamilyProperties &qfp) { return (qfp.queueFlags & vk::QueueFlagBits::eGraphics) != static_cast<vk::QueueFlags>(0); });
         assert(graphicsQueueFamilyProperty != queueFamilyProperties.end() && "No graphics queue family found!");
         auto graphicsIndex = static_cast<uint32_t>(std::distance(queueFamilyProperties.begin(), graphicsQueueFamilyProperty));
+
+        // determine a queueFamilyIndex that supports present
+        // first check if the graphicsIndex is good enough
+        auto presentIndex = this->physicalDevice.getSurfaceSupportKHR(graphicsIndex, *this->surface) ? graphicsIndex : static_cast<uint32_t>(queueFamilyProperties.size());
+        if (presentIndex == queueFamilyProperties.size())
+        {
+            // the graphicsIndex doesn't support present -> look for another family index that supports both graphics and present
+            for (size_t i = 0; i < queueFamilyProperties.size(); i++)
+            {
+                if ((queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eGraphics) && physicalDevice.getSurfaceSupportKHR(static_cast<uint32_t>(i), *this->surface))
+                {
+                    graphicsIndex = static_cast<uint32_t>(i);
+                    presentIndex  = graphicsIndex;
+                    break;
+                }
+            }
+            if (presentIndex == queueFamilyProperties.size())
+            {
+                // there's nothing like a single family index that supports both graphics and present -> look for another family index that supports present
+                for (size_t i = 0; i < queueFamilyProperties.size(); i++)
+                {
+                    if (physicalDevice.getSurfaceSupportKHR(static_cast<uint32_t>(i), *this->surface))
+                    {
+                        presentIndex = static_cast<uint32_t>(i);
+                        break;
+                    }
+                }
+            }
+        }
+        if ((graphicsIndex == queueFamilyProperties.size() ) || (presentIndex == queueFamilyProperties.size() )){
+            throw std::runtime_error("Could not find a queue for graphics or present -> terminating");
+        }
 
         // query for Vulkan 1.3 features
         vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> featureChain = {
