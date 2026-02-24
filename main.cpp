@@ -1,6 +1,7 @@
 #include "vulkan/vulkan.hpp"
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <utility>
 #include <vector>
@@ -37,8 +38,7 @@ class HelloTriangleApplication
     }
 
   private:
-    GLFWwindow *window = nullptr;
-
+    GLFWwindow                      *window = nullptr;
     vk::raii::Context                context;
     vk::raii::Instance               instance       = nullptr;
     vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
@@ -47,6 +47,14 @@ class HelloTriangleApplication
     vk::raii::Device                 device         = nullptr;
     vk::raii::Queue                  graphicsQueue  = nullptr;
     vk::raii::Queue                  presentQueue   = nullptr;
+    vk::raii::SwapchainKHR           swapChain      = nullptr;
+    std::vector<vk::Image>           swapChainImages;
+    vk::SurfaceFormatKHR             swapChainSurfaceFormat;
+    vk::Extent2D                     swapChainExtent;
+
+    vk::Format swapChainImageFormat = vk::Format::eUndefined;
+
+    uint32_t queueFamilyIndices[2];
 
     std::vector<const char *> deviceExtensions = {vk::KHRSwapchainExtensionName};
 
@@ -67,6 +75,7 @@ class HelloTriangleApplication
         this->createSurface();
         this->pickPhysicalDevice();
         this->createLogicalDevice();
+        this->createSwapChain(); // TODO : Might be out of date
     }
 
     void mainLoop()
@@ -226,9 +235,12 @@ class HelloTriangleApplication
                 }
             }
         }
-        if ((graphicsIndex == queueFamilyProperties.size() ) || (presentIndex == queueFamilyProperties.size() )){
+        if ((graphicsIndex == queueFamilyProperties.size()) || (presentIndex == queueFamilyProperties.size()))
+        {
             throw std::runtime_error("Could not find a queue for graphics or present -> terminating");
         }
+        this->queueFamilyIndices[0] = graphicsIndex;
+        this->queueFamilyIndices[1] = presentIndex;
 
         // query for Vulkan 1.3 features
         vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> featureChain = {
@@ -251,7 +263,70 @@ class HelloTriangleApplication
         this->graphicsQueue = vk::raii::Queue(this->device, graphicsIndex, 0);
     }
 
-    std::vector<const char *> getRequiredExtensions()
+    void createSwapChain()
+    {
+        auto surfaceCapabilities     = physicalDevice.getSurfaceCapabilitiesKHR(*this->surface);
+        this->swapChainSurfaceFormat = this->chooseSwapSurfaceFormat(this->physicalDevice.getSurfaceFormatsKHR(*this->surface));
+        this->swapChainExtent        = this->chooseSwapExtent(surfaceCapabilities);
+        auto minImageCount           = std::max(3u, surfaceCapabilities.minImageCount);
+        minImageCount                = (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) ? surfaceCapabilities.maxImageCount : minImageCount;
+        vk::SwapchainCreateInfoKHR swapChainCreateInfo{
+            .flags            = vk::SwapchainCreateFlagsKHR(),
+            .surface          = *this->surface,
+            .minImageCount    = minImageCount,
+            .imageFormat      = this->swapChainSurfaceFormat.format,
+            .imageColorSpace  = this->swapChainSurfaceFormat.colorSpace,
+            .imageExtent      = this->swapChainExtent,
+            .imageArrayLayers = 1,
+            .imageUsage       = vk::ImageUsageFlagBits::eColorAttachment,
+            .preTransform     = surfaceCapabilities.currentTransform,
+            .compositeAlpha   = vk::CompositeAlphaFlagBitsKHR::eOpaque,
+            .presentMode      = this->chooseSwapPresentMode(this->physicalDevice.getSurfacePresentModesKHR(*this->surface)),
+            .clipped          = true,
+            .oldSwapchain     = nullptr};
+        if (this->queueFamilyIndices[0] != this->queueFamilyIndices[1])
+        {
+            swapChainCreateInfo.imageSharingMode      = vk::SharingMode::eConcurrent;
+            swapChainCreateInfo.queueFamilyIndexCount = 2;
+            swapChainCreateInfo.pQueueFamilyIndices   = this->queueFamilyIndices;
+        }
+        else
+        {
+            swapChainCreateInfo.imageSharingMode      = vk::SharingMode::eExclusive;
+            swapChainCreateInfo.queueFamilyIndexCount = 0;              // optional
+            swapChainCreateInfo.pQueueFamilyIndices   = nullptr;        // optional
+        }
+        this->swapChain       = vk::raii::SwapchainKHR(this->device, swapChainCreateInfo);
+        this->swapChainImages = swapChain.getImages();
+        this->swapChainImageFormat = this->swapChainSurfaceFormat.format;
+    }
+
+    static vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR> &availableFormats)
+    {
+        assert(!availableFormats.empty());
+        for (const auto &availableFormat : availableFormats)
+        {
+            if (availableFormat.format == vk::Format::eB8G8R8A8Srgb && availableFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear)
+            {
+                return availableFormat;
+            }
+        }
+        return availableFormats[0];
+    }
+
+    static vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR> &availablePresentModes)
+    {
+        for (const auto &availablePresentMode : availablePresentModes)
+        {
+            if (availablePresentMode == vk::PresentModeKHR::eMailbox)
+            {
+                return availablePresentMode;
+            }
+        }
+        return vk::PresentModeKHR::eFifo;
+    }
+
+    static std::vector<const char *> getRequiredExtensions()
     {
         uint32_t glfwExtensionCount = 0;
         auto     glfwExtensions     = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
@@ -261,6 +336,20 @@ class HelloTriangleApplication
             extensions.push_back(vk::EXTDebugUtilsExtensionName);
 
         return extensions;
+    }
+
+    vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &capabilities)
+    {
+        if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
+        {
+            return capabilities.currentExtent;
+        }
+        int width, height;
+        glfwGetFramebufferSize(this->window, &width, &height);
+
+        return {
+            std::clamp<uint32_t>(width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
+            std::clamp<uint32_t>(height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height)};
     }
 
     static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type, const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData, void *)
