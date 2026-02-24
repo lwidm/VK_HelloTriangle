@@ -11,6 +11,17 @@
                 "CMAKE_C_COMPILER": "clang-cl",
                 "CMAKE_CXX_COMPILER": "clang-cl"
             }
+        },
+        {
+            "name": "linux-g++",
+            "displayName": "Linux g++",
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "GLFW_DIR": "",
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++"
+            }
         }
     ]
 }

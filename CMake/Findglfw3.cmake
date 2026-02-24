@@ -38,7 +38,7 @@ if(MSVC)
   endif()
 elseif(MINGW)
   set(_GLFW_LIB_SUFFIX lib-mingw-w64)
-  elif(WIN32)
+  elseif(WIN32)
   set(_GLFW_LIB_SUFFIX lib-vc2022)
 endif()
 
