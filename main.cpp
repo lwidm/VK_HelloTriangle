@@ -44,6 +44,9 @@ class HelloTriangleApplication
     vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
 
     vk::raii::PhysicalDevice physicalDevice = nullptr;
+    vk::raii::Device         device         = nullptr;
+
+    vk::raii::Queue graphicsQueue = nullptr;
 
     std::vector<const char *> deviceExtensions = {vk::KHRSwapchainExtensionName};
 
@@ -62,6 +65,7 @@ class HelloTriangleApplication
         this->createInstance();
         this->setupDebugMessenger();
         this->pickPhysicalDevice();
+        this->createLogicalDevice();
     }
 
     void mainLoop()
@@ -142,15 +146,6 @@ class HelloTriangleApplication
         this->debugMessenger = this->instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfoEXT);
     }
 
-    uint32_t findQueueFamilies(vk::raii::PhysicalDevice physicalDevice)
-    {
-        std::vector<vk::QueueFamilyProperties> queueFamilyProperties = this->physicalDevice.getQueueFamilyProperties();
-
-        auto graphicsQueueFamilyProperty = std::find_if(queueFamilyProperties.begin(), queueFamilyProperties.end(), [](const vk::QueueFamilyProperties &qfp) { return qfp.queueFlags & vk::QueueFlagBits::eGraphics; });
-
-        return static_cast<uint32_t>(std::distance(queueFamilyProperties.begin(), graphicsQueueFamilyProperty));
-    }
-
     void pickPhysicalDevice()
     {
         std::vector<vk::raii::PhysicalDevice> devices = this->instance.enumeratePhysicalDevices();
@@ -180,6 +175,37 @@ class HelloTriangleApplication
         {
             throw std::runtime_error("failed to find a suitable GPU!");
         }
+    }
+
+    void createLogicalDevice()
+    {
+        // find the index of the first queue family that supports graphics
+        std::vector<vk::QueueFamilyProperties> queueFamilyProperties = this->physicalDevice.getQueueFamilyProperties();
+
+        // get the first index into queueFamilyProperties which supports graphics
+        auto graphicsQueueFamilyProperty = std::ranges::find_if(queueFamilyProperties, [](const vk::QueueFamilyProperties &qfp) { return (qfp.queueFlags & vk::QueueFlagBits::eGraphics) != static_cast<vk::QueueFlags>(0); });
+        assert(graphicsQueueFamilyProperty != queueFamilyProperties.end() && "No graphics queue family found!");
+        auto graphicsIndex = static_cast<uint32_t>(std::distance(queueFamilyProperties.begin(), graphicsQueueFamilyProperty));
+
+        // query for Vulkan 1.3 features
+        vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> featureChain = {
+            {},
+            {.dynamicRendering = true},           // Enable dynamic rendering from Vulkan 1.3
+            {.extendedDynamicState = true}        // Enabled extended dynamic state from the extension
+        };
+
+        // create a Device
+        float                     queuePriority = 0.5f;
+        vk::DeviceQueueCreateInfo deviceQueueCreateInfo{.queueFamilyIndex = graphicsIndex, .queueCount = 1, .pQueuePriorities = &queuePriority};
+        vk::DeviceCreateInfo      deviceCreateInfo{
+                 .pNext                   = &featureChain.get<vk::PhysicalDeviceFeatures2>(),
+                 .queueCreateInfoCount    = 1,
+                 .pQueueCreateInfos       = &deviceQueueCreateInfo,
+                 .enabledExtensionCount   = static_cast<uint32_t>(this->deviceExtensions.size()),
+                 .ppEnabledExtensionNames = this->deviceExtensions.data()};
+
+        this->device        = vk::raii::Device(this->physicalDevice, deviceCreateInfo);
+        this->graphicsQueue = vk::raii::Queue(this->device, graphicsIndex, 0);
     }
 
     std::vector<const char *> getRequiredExtensions()
